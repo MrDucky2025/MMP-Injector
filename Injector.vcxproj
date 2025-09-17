@@ -155,6 +155,9 @@
     <ClInclude Include="TPInjection\TPInjection.h" />
     <ClInclude Include="WorkerFactory\WorkerFactory.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Object Include="ICHooker\ICHooker.obj" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

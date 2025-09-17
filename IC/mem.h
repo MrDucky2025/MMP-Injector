@@ -157,23 +157,23 @@ HMODULE get_byfron_handle(HANDLE proc) {
 	return nullptr;
 }
 
-inline namespace offsets {
-	inline namespace subs {
+ namespace offsets {
+	 namespace subs {
 		constexpr uint32_t sub_checks[12] = {
-			0x4AB5F3, 0x4B74D0, 0x4B7A92,
-			0x4B7EB0, 0x4B90C3, 0x4C047E,
-			0x4C0A93, 0x4C1743, 0x4C1E53,
-			0x4C27E3, 0x4CDC93, 0x4FE783
+		0x4d51fc, 0x4e0744, 0x4ec5f4,
+		0x4ed1c4, 0x4edc24, 0x4ee3c4,
+		0x4f6614, 0x4f7ea4, 0x4fb740,
+		0x4fbd74, 0x4fc1c0, 0x512c24
 		};
 	}
 
-	constexpr uint32_t general_integrity = 0x4B7A92;
+	constexpr uint32_t general_integrity = 0x4FBD74;
 
-	inline namespace integrity {
-		constexpr uint32_t whitelist_check = 0x4E2F39;
-		constexpr uint32_t console_check = 0x6482CB;
-		constexpr uint32_t control_flow_guard_check = 0x281300;
-		constexpr uint32_t icebp_check = 0xCC75D7;
+	 namespace integrity {
+		constexpr uint32_t whitelist_check = 0x4FD7D3;
+		constexpr uint32_t console_check = 0x7428CC;
+		constexpr uint32_t control_flow_guard_check = 0x27F860;
+		constexpr uint32_t icebp_check = 0xCF08FF;
 	}
 }
 
@@ -184,10 +184,10 @@ bool patch_checks(HANDLE proc, HMODULE base) {
 	patch sub_patch = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
 
 	patches main_patches = {
-		{ offsets::integrity::whitelist_check, { 0xB8, 0x03, 0x00, 0x00, 0x00 } },
+		//{ offsets::integrity::whitelist_check, { 0xB8, 0x03, 0x00, 0x00, 0x00 } },
 		{ offsets::integrity::console_check, { 0x38, 0xC0, 0x90, 0x90, 0x90 } },
 		{ offsets::integrity::control_flow_guard_check, { 0xFF, 0xE0, 0xC3, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 } },
-		{ offsets::integrity::icebp_check, { 0xC7, 0x41, 0x68, 0xF4, 0x0F, 0xFF, 0xFF, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 } },
+		/*{ offsets::integrity::icebp_check, { 0xC7, 0x41, 0x68, 0xF4, 0x0F, 0xFF, 0xFF, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 } },*/
 	};
 
 	for (auto& addr : offsets::subs::sub_checks) {

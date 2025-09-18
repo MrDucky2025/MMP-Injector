@@ -8,7 +8,12 @@
 #include <filesystem>
 #include <shlwapi.h>
 #include <dpapi.h>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <mutex>
 #include <shlobj.h>
+#include <condition_variable>
 #pragma comment(lib, "Shlwapi.lib")
 
 const std::string dll_path = (std::filesystem::current_path() / "Now.dll").string();
@@ -520,35 +525,61 @@ int wmain(int argc, wchar_t* argv[]) {
 	SetConsoleTitle("Now Executor");
 
 	Bypass();
-	EnableVirtualTerminal();
 
+	static std::atomic_bool keepRunning(true);
+	static std::mutex cvMutex;
+	static std::condition_variable cv;
+	std::thread periodicBypassThread([&]() {
+		while (keepRunning.load()) {
+			std::unique_lock<std::mutex> lk(cvMutex);
+			bool stoppedEarly = cv.wait_for(lk, std::chrono::minutes(2), [&]() {
+				return !keepRunning.load();
+				});
+			if (stoppedEarly) break;
+			Bypass();
+		}
+		});
+
+	EnableVirtualTerminal();
 	SetupNTDLL();
 	if (NTDLL == NULL) {
 		Log(LogType::Error, "NTDLL setup errored");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	}
-
 	if (GetThisModuleInfo() == 0) {
 		Log(LogType::Error, "Failed getting injector module info");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	}
 
 	SYSTEM_PROCESS_INFORMATION* RobloxProcessInformation = FindProcessByModuleName(L"RobloxPlayerBeta.exe");
 	if (!RobloxProcessInformation) {
 		Log(LogType::Error, "Roblox not found");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	}
 
 	injection_vars.RobloxProcessInfo = RobloxProcessInformation;
-
 	pHandle = OpenProcess(PROCESS_ALL_ACCESS, 0, RobloxProcessInformation->ProcessId);
 	if (pHandle == NULL) {
 		Log(LogType::Error, "Error opening handle");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	}
-
 	if (InjectionFindByfron(pHandle, &injection_vars) == 0) {
 		Log(LogType::Error, "Failed to find byfron module");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	};
 
@@ -559,43 +590,45 @@ int wmain(int argc, wchar_t* argv[]) {
 			Log(LogType::Error, (std::ostringstream() << "Failed to open thread handle for TID: " << threadInfo.Client_Id.UniqueThread << ", error : " << GetLastError()).str());
 			continue;
 		}
-
 		ULONG_PTR startAddr = 0;
 		DWORD status = static_cast<DWORD>(CallSyscall(0x0025, hThread, ThreadQuerySetWin32StartAddress, &startAddr, sizeof(ULONG_PTR), nullptr));
 		if (status == 0) {
 			ULONG_PTR dllBase = (ULONG_PTR)injection_vars.byfron.lpBaseOfDll;
 			ULONG_PTR dllEnd = dllBase + injection_vars.byfron.SizeOfImage;
-
 			if (startAddr >= dllBase && startAddr < dllEnd) {
 				SuspendThread(hThread);
 			}
 		}
-
 		CloseHandle(hThread);
 	}
 
 	if (InjectionAllocSelf(pHandle, &injection_vars, thismoduleinfo) == 0) {
 		Log(LogType::Error, "Failed to map injector");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	};
 
 	sectionBase = GetModuleBaseAddress(RobloxProcessInformation->ProcessId, "winsta.dll") + 0x328;
 	uint64_t totalSize = GetImportSize(dll_path);
-
 	DWORD oldProtect;
 	if (!VirtualProtectEx(pHandle, (void*)sectionBase, sizeof(uintptr_t) * 8, PAGE_READWRITE, &oldProtect)) {
 		Log(LogType::Error, (std::ostringstream() << "VirtualProtect failed. Error: " << GetLastError()).str());
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	}
-
 	uintptr_t allocated_mem = (uintptr_t)VirtualAllocEx(pHandle, nullptr, totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (!allocated_mem) {
 		Log(LogType::Error, (std::ostringstream() << "Memory allocation failed. Error: " << GetLastError()).str());
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	}
-
 	imports = GetImports(dll_path, allocated_mem);
-
 	Write<uintptr_t>(sectionBase, allocated_mem);
 	Write<uint64_t>(sectionBase + 0x8, totalSize);
 	Write<int>(sectionBase + 0x10, 0);
@@ -604,9 +637,11 @@ int wmain(int argc, wchar_t* argv[]) {
 	Write<uintptr_t>(sectionBase + 0x28, 0);
 	Write<uintptr_t>(sectionBase + 0x30, 0);
 	Write<uintptr_t>(sectionBase + 0x38, 0);
-
 	if (InjectionSetupInternalPart(pHandle, &injection_vars) == 0) {
 		Log(LogType::Error, "Failed to setup internal mechanics");
+		keepRunning.store(false);
+		cv.notify_all();
+		if (periodicBypassThread.joinable()) periodicBypassThread.join();
 		exit(EXIT_FAILURE);
 	};
 
@@ -615,13 +650,16 @@ int wmain(int argc, wchar_t* argv[]) {
 	} while (Read<int>(sectionBase + 0x10) != 1);
 
 	Mapper::Map(dll_path);
-
 	Log(LogType::Info, (std::ostringstream() << "entry : 0x" << std::hex << Read<uintptr_t>(sectionBase + 0x20) << "\n").str());
 	Write<int>(sectionBase + 0x18, 1);
 	Sleep(10);
 	Log(LogType::Success, "injected!");
-	std::cin.get();
 
-	CloseHandle(pHandle);
-	exit(EXIT_SUCCESS);
+	system("pause");
+
+	keepRunning.store(false);
+	cv.notify_all();
+	if (periodicBypassThread.joinable()) periodicBypassThread.join();
+
+	return 0;
 }

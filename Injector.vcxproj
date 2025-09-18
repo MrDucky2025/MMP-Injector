@@ -157,6 +157,14 @@
   </ItemGroup>
   <ItemGroup>
     <Object Include="ICHooker\ICHooker.obj" />
+    <Object Include="SysCaller\syscallcaller.obj" />
+    <Object Include="Tools\Tools_.obj" />
+    <Object Include="x64\Release\Intermediates\Bypass.obj" />
+    <Object Include="x64\Release\Intermediates\Injection.obj" />
+    <Object Include="x64\Release\Intermediates\main.obj" />
+    <Object Include="x64\Release\Intermediates\ntdlldefs.obj" />
+    <Object Include="x64\Release\Intermediates\Tools.obj" />
+    <Object Include="x64\Release\Intermediates\TPInjection.obj" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
